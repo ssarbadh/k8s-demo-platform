@@ -1,0 +1,396 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: app
+data:
+  OTLP_ENDPOINT: http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces
+  REDIS_URL: redis://redis.app.svc.cluster.local:6379/0
+  DB_URL: postgresql://demo:demo123@pgbouncer.app.svc.cluster.local:6432/ecommerce
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: app
+  labels: {app: frontend}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: frontend
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: frontend}
+            - {name: DOWNSTREAM_API_GATEWAY, value: http://api-gateway.app.svc.cluster.local:8080}
+            - {name: EXPECTED_DEPS, value: api_gateway}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: app
+  labels: {app: api-gateway}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: api-gateway}
+  template:
+    metadata:
+      labels: {app: api-gateway}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: api-gateway
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: api-gateway}
+            - {name: EXPECTED_DEPS, value: auth,user,order,inventory,payment,notification}
+            - {name: DOWNSTREAM_AUTH, value: http://auth-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_USER, value: http://user-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_ORDER, value: http://order-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_INVENTORY, value: http://inventory-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_PAYMENT, value: http://payment-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_NOTIFICATION, value: http://notification-service.app.svc.cluster.local:8080}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 300m, memory: 512Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: app
+  labels: {app: auth-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: auth-service}
+  template:
+    metadata:
+      labels: {app: auth-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: auth-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: auth-service}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: app
+  labels: {app: user-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: user-service}
+  template:
+    metadata:
+      labels: {app: user-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: user-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: user-service}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: app
+  labels: {app: order-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: order-service}
+  template:
+    metadata:
+      labels: {app: order-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: order-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: order-service}
+            - {name: EXPECTED_DEPS, value: inventory,payment,notification}
+            - {name: DOWNSTREAM_INVENTORY, value: http://inventory-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_PAYMENT, value: http://payment-service.app.svc.cluster.local:8080}
+            - {name: DOWNSTREAM_NOTIFICATION, value: http://notification-service.app.svc.cluster.local:8080}
+          resources:
+            requests: {cpu: 60m, memory: 128Mi}
+            limits: {cpu: 400m, memory: 512Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: app
+  labels: {app: inventory-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory-service}
+  template:
+    metadata:
+      labels: {app: inventory-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: inventory-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: inventory-service}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: app
+  labels: {app: payment-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment-service}
+  template:
+    metadata:
+      labels: {app: payment-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: payment-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: payment-service}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: app
+  labels: {app: notification-service}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: notification-service}
+  template:
+    metadata:
+      labels: {app: notification-service}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: notification-service
+          image: sre-demo-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom: [{configMapRef: {name: app-config}}]
+          env:
+            - {name: SERVICE_NAME, value: notification-service}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 256Mi}
+          livenessProbe: {httpGet: {path: /health, port: 8080}, initialDelaySeconds: 10, periodSeconds: 10}
+          readinessProbe: {httpGet: {path: /ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 5}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: frontend, namespace: app, labels: {app: frontend}}
+spec:
+  selector: {app: frontend}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: api-gateway, namespace: app, labels: {app: api-gateway}}
+spec:
+  selector: {app: api-gateway}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: auth-service, namespace: app, labels: {app: auth-service}}
+spec:
+  selector: {app: auth-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: user-service, namespace: app, labels: {app: user-service}}
+spec:
+  selector: {app: user-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: order-service, namespace: app, labels: {app: order-service}}
+spec:
+  selector: {app: order-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: inventory-service, namespace: app, labels: {app: inventory-service}}
+spec:
+  selector: {app: inventory-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: payment-service, namespace: app, labels: {app: payment-service}}
+spec:
+  selector: {app: payment-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: notification-service, namespace: app, labels: {app: notification-service}}
+spec:
+  selector: {app: notification-service}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-service-hpa
+  namespace: app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-service-pdb
+  namespace: app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-service

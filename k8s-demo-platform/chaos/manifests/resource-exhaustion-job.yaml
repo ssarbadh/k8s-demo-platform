@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cpu-memory-stress
+  namespace: app
+spec:
+  template:
+    metadata:
+      labels:
+        app: cpu-memory-stress
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: stress
+          image: polinux/stress
+          args: ["--cpu", "2", "--vm", "2", "--vm-bytes", "256M", "--timeout", "300s"]
+          resources:
+            requests:
+              cpu: 300m
+              memory: 256Mi
+            limits:
+              cpu: 1200m
+              memory: 1Gi
+  backoffLimit: 0

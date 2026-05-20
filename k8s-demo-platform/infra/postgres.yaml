@@ -1,0 +1,203 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: app
+type: Opaque
+stringData:
+  POSTGRES_DB: ecommerce
+  POSTGRES_USER: demo
+  POSTGRES_PASSWORD: demo123
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: app
+data:
+  01-init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS inventory (
+      sku TEXT PRIMARY KEY,
+      item_name TEXT NOT NULL,
+      quantity INT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      sku TEXT NOT NULL,
+      quantity INT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    INSERT INTO users (username, email) VALUES
+      ('alice', 'alice@demo.local'),
+      ('bob', 'bob@demo.local')
+    ON CONFLICT DO NOTHING;
+    INSERT INTO inventory (sku, item_name, quantity) VALUES
+      ('sku-101', 'demo-keyboard', 120),
+      ('sku-102', 'demo-mouse', 200),
+      ('sku-103', 'demo-monitor', 40)
+    ON CONFLICT DO NOTHING;
+    INSERT INTO orders (user_id, sku, quantity, status) VALUES
+      (1, 'sku-101', 1, 'CREATED'),
+      (2, 'sku-103', 2, 'CREATED')
+    ON CONFLICT DO NOTHING;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: app
+data:
+  pgbouncer.ini: |
+    [databases]
+    ecommerce = host=postgres port=5432 dbname=ecommerce
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+    auth_type = plain
+    auth_file = /etc/pgbouncer/userlist.txt
+    max_client_conn = 100
+    default_pool_size = 20
+    min_pool_size = 5
+    reserve_pool_size = 5
+    pool_mode = transaction
+  userlist.txt: |
+    "demo" "demo123"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: app
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          env:
+            - name: POSTGRES_INITDB_ARGS
+              value: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U demo -d ecommerce"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U demo -d ecommerce"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: postgres-init
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: app
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbouncer
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+    spec:
+      containers:
+        - name: pgbouncer
+          image: edoburu/pgbouncer:1.23.1-p1
+          ports:
+            - containerPort: 6432
+              name: pgbouncer
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: pgbouncer-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbouncer
+  namespace: app
+spec:
+  selector:
+    app: pgbouncer
+  ports:
+    - port: 6432
+      targetPort: 6432
+      name: pgbouncer

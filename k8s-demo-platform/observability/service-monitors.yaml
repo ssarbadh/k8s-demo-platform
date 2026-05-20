@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: app-services-monitor
+  namespace: observability
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["app"]
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - frontend
+          - api-gateway
+          - auth-service
+          - user-service
+          - order-service
+          - inventory-service
+          - payment-service
+          - notification-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: fluent-bit-pods
+  namespace: observability
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["observability"]
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["fluent-bit"]
+  podMetricsEndpoints:
+    - path: /api/v1/metrics/prometheus
+      targetPort: 2020
+      interval: 30s

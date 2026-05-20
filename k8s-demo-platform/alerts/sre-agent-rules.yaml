@@ -1,0 +1,90 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sre-agent-alerts
+  namespace: observability
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: sre-agent.rules
+      rules:
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace="app"}[5m]) > 3
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: "Pod is crash looping"
+            description: "A pod in app namespace restarted more than 3 times in 5m."
+
+        - alert: HighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=~".+"}[5m])) by (le, service)) > 0.8
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "High request latency p95"
+            description: "Service {{ $labels.service }} p95 latency is over 800ms."
+
+        - alert: HighErrorRate
+          expr: (sum(rate(http_requests_total{service=~".+",status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total{service=~".+"}[5m])) by (service)) > 0.1
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: "High 5xx error rate"
+            description: "Service {{ $labels.service }} has >10% HTTP 5xx responses."
+
+        - alert: CPUSaturation
+          expr: sum(rate(container_cpu_usage_seconds_total{namespace="app",container!=""}[5m])) by (pod) > 0.4
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "CPU saturation"
+            description: "Pod {{ $labels.pod }} is CPU saturated."
+
+        - alert: MemorySaturation
+          expr: (container_memory_working_set_bytes{namespace="app",container!=""} / container_spec_memory_limit_bytes{namespace="app",container!=""}) > 0.85
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Memory saturation"
+            description: "Pod {{ $labels.pod }} exceeds 85% memory limit."
+
+        - alert: RedisUnavailable
+          expr: kube_deployment_status_replicas_available{namespace="app",deployment="redis"} < 1
+          for: 1m
+          labels: {severity: critical}
+          annotations:
+            summary: "Redis unavailable"
+            description: "Redis deployment has no available replicas."
+
+        - alert: PostgreSQLUnavailable
+          expr: kube_statefulset_status_replicas_ready{namespace="app",statefulset="postgres"} < 1
+          for: 1m
+          labels: {severity: critical}
+          annotations:
+            summary: "PostgreSQL unavailable"
+            description: "PostgreSQL StatefulSet is unavailable."
+
+        - alert: Http500Spike
+          expr: sum(increase(http_requests_total{service=~".+",status=~"5.."}[2m])) by (service) > 20
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: "HTTP 500 spike"
+            description: "Service {{ $labels.service }} has a sudden 500 spike."
+
+        - alert: OOMKilledPod
+          expr: increase(kube_pod_container_status_last_terminated_reason{namespace="app",reason="OOMKilled"}[10m]) > 0
+          for: 1m
+          labels: {severity: critical}
+          annotations:
+            summary: "Pod OOMKilled"
+            description: "A pod has been OOMKilled in app namespace."
+
+        - alert: NodePressure
+          expr: kube_node_status_condition{condition=~"MemoryPressure|DiskPressure|PIDPressure",status="true"} > 0
+          for: 2m
+          labels: {severity: warning}
+          annotations:
+            summary: "Node pressure detected"
+            description: "Node {{ $labels.node }} is under pressure."

@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns-deny-egress
+  namespace: app
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080

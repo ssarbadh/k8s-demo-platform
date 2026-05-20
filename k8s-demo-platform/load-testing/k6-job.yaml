@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-scripts
+  namespace: chaos-testing
+data:
+  k6-normal.js: |
+    import http from "k6/http";
+    import { sleep } from "k6";
+    export default function () { http.get("http://api-gateway.app.svc.cluster.local:8080/api/catalog"); sleep(1); }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-normal-traffic
+  namespace: chaos-testing
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:0.53.0
+          command: ["k6", "run", "/scripts/k6-normal.js"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: k6-scripts
+  backoffLimit: 0
