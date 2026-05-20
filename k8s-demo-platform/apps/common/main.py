@@ -69,6 +69,9 @@ _tracer = None
 _mem_holder = []
 _cpu_spike_enabled = False
 
+# FastAPI instrumentation must be installed before app startup.
+FastAPIInstrumentor.instrument_app(app)
+
 
 def _setup_tracing() -> None:
     global _tracer
@@ -136,7 +139,6 @@ def _cpu_spike() -> None:
 def startup() -> None:
     _setup_tracing()
     RequestsInstrumentor().instrument()
-    FastAPIInstrumentor.instrument_app(app)
     if FAILURE_MODE == "cpu_spike":
         global _cpu_spike_enabled
         _cpu_spike_enabled = True
