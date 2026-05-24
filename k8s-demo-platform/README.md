@@ -137,9 +137,9 @@ kubectl -n observability port-forward svc/jaeger-query 16686:16686
 - Jaeger: http://localhost:16686
 
 ### Ingress Hosts (if enabled)
-- `demo.local`
-- `grafana.demo.local`
-- `kibana.demo.local`
+- `demo.k8s`
+- `grafana.demo.k8s`
+- `kibana.demo.k8s`
 
 ## Credentials
 

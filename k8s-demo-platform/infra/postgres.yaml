@@ -35,8 +35,8 @@ data:
       created_at TIMESTAMPTZ DEFAULT now()
     );
     INSERT INTO users (username, email) VALUES
-      ('alice', 'alice@demo.local'),
-      ('bob', 'bob@demo.local')
+      ('alice', 'alice@demo.k8s'),
+      ('bob', 'bob@demo.k8s')
     ON CONFLICT DO NOTHING;
     INSERT INTO inventory (sku, item_name, quantity) VALUES
       ('sku-101', 'demo-keyboard', 120),

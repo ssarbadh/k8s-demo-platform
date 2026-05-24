@@ -25,9 +25,14 @@ spec:
       labels:
         app: elasticsearch
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: elasticsearch
           image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
           env:
             - name: discovery.type
               value: single-node
