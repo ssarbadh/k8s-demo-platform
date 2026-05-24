@@ -27,7 +27,7 @@ SERVICE_PORT = int(os.getenv("PORT", "8080"))
 DB_URL = os.getenv("DB_URL", "")
 REDIS_URL = os.getenv("REDIS_URL", "")
 OTLP_ENDPOINT = os.getenv(
-    "OTLP_ENDPOINT", "http://jaeger-collector.observability.svc.cluster.local:4318/v1/traces"
+    "OTLP_ENDPOINT", "http://jaeger.observability.svc.cluster.local:4318/v1/traces"
 )
 FAILURE_MODE = os.getenv("FAILURE_MODE", "none")
 FAILURE_RATE = float(os.getenv("FAILURE_RATE", "0.0"))

@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: demo.local
+    - host: demo.k8s
       http:
         paths:
           - path: /api
@@ -32,7 +32,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: grafana.demo.local
+    - host: grafana.demo.k8s
       http:
         paths:
           - path: /
@@ -42,7 +42,7 @@ spec:
                 name: kube-prometheus-stack-grafana
                 port:
                   number: 80
-    - host: kibana.demo.local
+    - host: kibana.demo.k8s
       http:
         paths:
           - path: /
